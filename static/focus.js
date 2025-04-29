@@ -5,37 +5,37 @@ const API = {
     buhForms: "/api3/buh",
 };
 
-function run() {
-    sendRequest(API.organizationList, (orgOgrns) => {
+async function run() {
+    try {
+        const orgOgrns = await sendRequest(API.organizationList);
         const ogrns = orgOgrns.join(",");
-        sendRequest(`${API.orgReqs}?ogrn=${ogrns}`, (requisites) => {
-            const orgsMap = reqsToMap(requisites);
-            sendRequest(`${API.analytics}?ogrn=${ogrns}`, (analytics) => {
-                addInOrgsMap(orgsMap, analytics, "analytics");
-                sendRequest(`${API.buhForms}?ogrn=${ogrns}`, (buh) => {
-                    addInOrgsMap(orgsMap, buh, "buhForms");
-                    render(orgsMap, orgOgrns);
-                });
-            });
-        });
-    });
+
+        const [requisites, analytics, buh] = await Promise.all([
+            sendRequest(`${API.orgReqs}?ogrn=${ogrns}`),
+            sendRequest(`${API.analytics}?ogrn=${ogrns}`),
+            sendRequest(`${API.buhForms}?ogrn=${ogrns}`)
+        ]);
+
+        const orgsMap = reqsToMap(requisites);
+        addInOrgsMap(orgsMap, analytics, "analytics");
+        addInOrgsMap(orgsMap, buh, "buhForms");
+        render(orgsMap, orgOgrns);
+    } catch (error) {
+        alert(error.message);
+    }
 }
 
-run();
-
-function sendRequest(url, callback) {
-    const xhr = new XMLHttpRequest();
-    xhr.open("GET", url, true);
-
-    xhr.onreadystatechange = function () {
-        if (xhr.readyState === XMLHttpRequest.DONE) {
-            if (xhr.status === 200) {
-                callback(JSON.parse(xhr.response));
+function sendRequest(url) {
+    return fetch(url)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
-        }
-    };
-
-    xhr.send();
+            return response.json();
+        })
+        .catch(error => {
+            throw new Error(`Request failed: ${error.message}`);
+        });
 }
 
 function reqsToMap(requisites) {
@@ -86,7 +86,7 @@ function renderOrganization(orgInfo, template, container) {
                 orgInfo.buhForms[orgInfo.buhForms.length - 1].form2[0] &&
                 orgInfo.buhForms[orgInfo.buhForms.length - 1].form2[0]
                     .endValue) ||
-                0
+            0
         );
     } else {
         money.textContent = "—";
@@ -132,3 +132,5 @@ function createAddress(address) {
         return `${address[key].topoShortName}. ${address[key].topoValue}`;
     }
 }
+
+run();
